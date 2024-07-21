@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Tareas de Jira</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        #menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #f8f8f8;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        #taskContainer {
+            margin-top: 60px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .task-card {
+            width: 250px;
+            margin: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="menu">
+        <select id="projectSelector"></select>
+        <select id="epicSelector"></select>
+        <div id="statusFilters"></div>
+        <button id="reloadButton">🔄</button>
+        <button id="configButton">⚙️</button>
+    </div>
+    <div id="taskContainer"></div>
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Configuración</h2>
+            <label for="jiraUser">Usuario de Jira:</label>
+            <input type="text" id="jiraUser">
+            <label for="jiraToken">Token de Jira:</label>
+            <input type="password" id="jiraToken">
+            <label for="modeSelector">Modo:</label>
+            <select id="modeSelector">
+                <option value="demo">Demo</option>
+                <option value="production">Producción</option>
+            </select>
+            <button id="saveConfig">Guardar</button>
+        </div>
+    </div>
+    <script>
+        const demoData = {
+            projects: ['Proyecto A', 'Proyecto B'],
+            epics: {
+                'Proyecto A': ['Epic 1', 'Epic 2'],
+                'Proyecto B': ['Epic 3', 'Epic 4']
+            },
+            tasks: [
+                {
+                    code: 'TASK-001',
+                    name: 'Tarea de prueba 1',
+                    status: 'To Do',
+                    dueDate: '2024-07-30',
+                    assignee: 'usuario1',
+                    project: 'Proyecto A',
+                    epic: 'Epic 1'
+                },
+                {
+                    code: 'TASK-002',
+                    name: 'Tarea de prueba 2',
+                    status: 'In Progress',
+                    dueDate: '2024-08-15',
+                    assignee: 'usuario2',
+                    project: 'Proyecto A',
+                    epic: 'Epic 2'
+                },
+                {
+                    code: 'TASK-003',
+                    name: 'Tarea de prueba 3',
+                    status: 'Done',
+                    dueDate: null,
+                    assignee: 'usuario3',
+                    project: 'Proyecto B',
+                    epic: 'Epic 3'
+                }
+            ]
+        };
+
+        let currentProject = '';
+        let currentEpic = '';
+        let statusFilters = {};
+        let config = {
+            jiraUser: '',
+            jiraToken: '',
+            mode: 'demo'
+        };
+
+        const projectSelector = document.getElementById('projectSelector');
+        const epicSelector = document.getElementById('epicSelector');
+        const statusFiltersContainer = document.getElementById('statusFilters');
+        const reloadButton = document.getElementById('reloadButton');
+        const configButton = document.getElementById('configButton');
+        const taskContainer = document.getElementById('taskContainer');
+        const configModal = document.getElementById('configModal');
+        const closeModal = document.getElementsByClassName('close')[0];
+        const jiraUserInput = document.getElementById('jiraUser');
+        const jiraTokenInput = document.getElementById('jiraToken');
+        const modeSelector = document.getElementById('modeSelector');
+        const saveConfigButton = document.getElementById('saveConfig');
+
+        function loadConfig() {
+            const savedConfig = localStorage.getItem('jiraVisualizerConfig');
+            if (savedConfig) {
+                config = JSON.parse(savedConfig);
+                jiraUserInput.value = config.jiraUser;
+                jiraTokenInput.value = config.jiraToken;
+                modeSelector.value = config.mode;
+            }
+        }
+
+        function saveConfig() {
+            config.jiraUser = jiraUserInput.value;
+            config.jiraToken = jiraTokenInput.value;
+            config.mode = modeSelector.value;
+            localStorage.setItem('jiraVisualizerConfig', JSON.stringify(config));
+        }
+
+        function loadFilters() {
+            const savedFilters = localStorage.getItem('jiraVisualizerFilters');
+            if (savedFilters) {
+                const filters = JSON.parse(savedFilters);
+                currentProject = filters.project;
+                currentEpic = filters.epic;
+                statusFilters = filters.statusFilters;
+            }
+        }
+
+        function saveFilters() {
+            const filters = {
+                project: currentProject,
+                epic: currentEpic,
+                statusFilters: statusFilters
+            };
+            localStorage.setItem('jiraVisualizerFilters', JSON.stringify(filters));
+        }
+
+        async function getJiraProjects() {
+            if (config.mode === 'demo') {
+                return demoData.projects;
+            } else {
+                try {
+                    const response = await axios.post('/api/projects', {
+                        username: config.jiraUser,
+                        token: config.jiraToken
+                    });
+                    return response.data.projects;
+                } catch (error) {
+                    console.error('Error al obtener proyectos de Jira:', error);
+                    return [];
+                }
+            }
+        }
+
+        async function getJiraEpics(project) {
+            if (config.mode === 'demo') {
+                return demoData.epics[project] || [];
+            } else {
+                try {
+                    const response = await axios.post('/api/epics', {
+                        username: config.jiraUser,
+                        token: config.jiraToken,
+                        project
+                    });
+                    return response.data.epics;
+                } catch (error) {
+                    console.error('Error al obtener epics de Jira:', error);
+                    return [];
+                }
+            }
+        }
+
+        async function getJiraTasks(project, epic) {
+            if (config.mode === 'demo') {
+                return demoData.tasks.filter(task => task.project === project && (!epic || task.epic === epic));
+            } else {
+                try {
+                    const response = await axios.post('/api/tasks', {
+                        username: config.jiraUser,
+                        token: config.jiraToken,
+                        project,
+                        epic
+                    });
+                    return response.data.tasks;
+                } catch (error) {
+                    console.error('Error al obtener tareas de Jira:', error);
+                    return [];
+                }
+            }
+        }
+
+        function renderProjectSelector(projects) {
+            projectSelector.innerHTML = '';
+            projects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project;
+                option.textContent = project;
+                projectSelector.appendChild(option);
+            });
+            projectSelector.value = currentProject;
+        }
+
+        function renderEpicSelector(epics) {
+            epicSelector.innerHTML = '<option value="">Todos los Epics</option>';
+            epics.forEach(epic => {
+                const option = document.createElement('option');
+                option.value = epic;
+                option.textContent = epic;
+                epicSelector.appendChild(option);
+            });
+            epicSelector.value = currentEpic;
+        }
+
+        function renderStatusFilters(tasks) {
+            const statuses = [...new Set(tasks.map(task => task.status))];
+            statusFiltersContainer.innerHTML = '';
+            statuses.forEach(status => {
+                const div = document.createElement('div');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `status-${status}`;
+                checkbox.checked = statusFilters[status] !== false;
+                checkbox.addEventListener('change', (e) => {
+                    statusFilters[status] = e.target.checked;
+                    saveFilters();
+                    renderTasks(tasks);
+                });
+                const label = document.createElement('label');
+                label.htmlFor = `status-${status}`;
+                label.textContent = status;
+                const colorPicker = document.createElement('input');
+                colorPicker.type = 'color';
+                colorPicker.value = statusFilters[status]?.color || '#ffffff';
+                colorPicker.addEventListener('change', (e) => {
+                    statusFilters[status] = { ...statusFilters[status], color: e.target.value };
+                    saveFilters();
+                    renderTasks(tasks);
+                });
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                div.appendChild(colorPicker);
+                statusFiltersContainer.appendChild(div);
+            });
+        }
+
+        function renderTasks(tasks) {
+            taskContainer.innerHTML = '';
+            tasks.forEach(task => {
+                if (statusFilters[task.status] !== false) {
+                    const card = document.createElement('div');
+                    card.className = 'task-card';
+                    card.style.backgroundColor = statusFilters[task.status]?.color || '#ffffff';
+                    const code = document.createElement('h3');
+                    code.textContent = task.code;
+                    const name = document.createElement('p');
+                    name.textContent = task.name;
+                    const status = document.createElement('p');
+                    status.textContent = `Estado: ${task.status}`;
+                    const dueDate = document.createElement('p');
+                    if (task.dueDate) {
+                        const date = new Date(task.dueDate);
+                        const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+                        dueDate.textContent = `Fecha de vencimiento: ${formattedDate}`;
+                        if (date < new Date()) {
+                            dueDate.textContent += ' ❌';
+                        }
+                    } else {
+                        dueDate.textContent = 'Fecha de vencimiento: ❌';
+                    }
+                    const assignee = document.createElement('p');
+                    assignee.textContent = `Asignado a: ${task.assignee}`;
+                    card.appendChild(code);
+                    card.appendChild(name);
+                    card.appendChild(status);
+                    card.appendChild(dueDate);
+                    card.appendChild(assignee);
+                    taskContainer.appendChild(card);
+                }
+            });
+        }
+
+        projectSelector.addEventListener('change', async (e) => {
+            currentProject = e.target.value;
+            currentEpic = '';
+            saveFilters();
+            const epics = await getJiraEpics(currentProject);
+            renderEpicSelector(epics);
+            const tasks = await getJiraTasks(currentProject);
+            renderStatusFilters(tasks);
+            renderTasks(tasks);
+        });
+
+        epicSelector.addEventListener('change', async (e) => {
+            currentEpic = e.target.value;
+            saveFilters();
+            const tasks = await getJiraTasks(currentProject, currentEpic);
+            renderTasks(tasks);
+        });
+
+        reloadButton.addEventListener('click', async () => {
+            const tasks = await getJiraTasks(currentProject, currentEpic);
+            renderStatusFilters(tasks);
+            renderTasks(tasks);
+        });
+
+        configButton.addEventListener('click', () => {
+            configModal.style.display = 'block';
+        });
+
+        closeModal.addEventListener('click', () => {
+            configModal.style.display = 'none';
+        });
+
+        saveConfigButton.addEventListener('click', () => {
+            saveConfig();
+            configModal.style.display = 'none';
+            location.reload();
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === configModal) {
+                configModal.style.display = 'none';
+            }
+        });
+
+        async function init() {
+            loadConfig();
+            loadFilters();
+            const projects = await getJiraProjects();
+            renderProjectSelector(projects);
+            if (currentProject) {
+                const epics = await getJiraEpics(currentProject);
+                renderEpicSelector(epics);
+                const tasks = await getJiraTasks(currentProject, currentEpic);
+                renderStatusFilters(tasks);
+                renderTasks(tasks);
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+.idea/.gitignore
+.idea/jira_visualizer.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
+tests/__init__.py
