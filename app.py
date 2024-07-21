@@ -78,7 +78,11 @@ def get_epics_jira():
 
 def get_auth(data):
     username = data.get('username', DEFAULT_USERNAME)
+    if username == '':
+        username = DEFAULT_USERNAME
     token = data.get('token', DEFAULT_TOKEN)
+    if token == '':
+        token = DEFAULT_TOKEN
     auth = HTTPBasicAuth(username, token)
     return auth
 
