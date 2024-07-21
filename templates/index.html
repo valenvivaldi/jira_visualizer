@@ -22,6 +22,23 @@
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        #menu.collapsed {
+            transform: translateY(-100%);
+        }
+
+        #toggleMenuButton {
+            position: fixed;
+            top: 0;
+            right: 0;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 1001;
         }
 
         #taskContainer {
@@ -37,6 +54,16 @@
             padding: 10px;
             border-radius: 5px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            color: black;
+            /* Default color */
+        }
+
+        .task-card .details {
+            display: none;
+        }
+
+        .task-card.show-details .details {
+            display: block;
         }
 
         .modal {
@@ -78,6 +105,7 @@
 </head>
 
 <body>
+    <button id="toggleMenuButton">☰</button>
     <div id="menu">
         <select id="projectSelector"></select>
         <select id="epicSelector"></select>
@@ -161,6 +189,8 @@
         const jiraTokenInput = document.getElementById('jiraToken');
         const modeSelector = document.getElementById('modeSelector');
         const saveConfigButton = document.getElementById('saveConfig');
+        const toggleMenuButton = document.getElementById('toggleMenuButton');
+        const menu = document.getElementById('menu');
 
         function loadConfig() {
             const savedConfig = localStorage.getItem('jiraVisualizerConfig');
@@ -293,7 +323,7 @@
                 label.textContent = status;
                 const colorPicker = document.createElement('input');
                 colorPicker.type = 'color';
-                colorPicker.value = statusFilters[status]?.color || '#ffffff';
+                colorPicker.value = statusFilters[status]?.color || '#f8f8f8';
                 colorPicker.addEventListener('change', (e) => {
                     statusFilters[status] = { ...statusFilters[status], color: e.target.value };
                     saveFilters();
@@ -312,35 +342,72 @@
                 if (statusFilters[task.status] !== false) {
                     const card = document.createElement('div');
                     card.className = 'task-card';
-                    card.style.backgroundColor = statusFilters[task.status]?.color || '#ffffff';
+                    const bgColor = statusFilters[task.status]?.color || '#ffffff';
+                    card.style.backgroundColor = bgColor;
+
                     const code = document.createElement('h3');
                     code.textContent = task.code;
+
                     const name = document.createElement('p');
                     name.textContent = task.name;
+
                     const status = document.createElement('p');
                     status.textContent = `Estado: ${task.status}`;
+
                     const dueDate = document.createElement('p');
                     if (task.dueDate) {
                         const date = new Date(task.dueDate);
                         const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
                         dueDate.textContent = `Fecha de vencimiento: ${formattedDate}`;
                         if (date < new Date()) {
-                            dueDate.textContent += ' ❌';
+                            dueDate.textContent += ' ⚠️';
                         }
                     } else {
                         dueDate.textContent = 'Fecha de vencimiento: ❌';
                     }
+
                     const assignee = document.createElement('p');
                     assignee.textContent = `Asignado a: ${task.assignee}`;
+
+                    const detailsButton = document.createElement('button');
+                    detailsButton.textContent = 'Mostrar detalles';
+                    detailsButton.addEventListener('click', () => {
+                        card.classList.toggle('show-details');
+                        detailsButton.textContent = card.classList.contains('show-details') ? 'Ocultar detalles' : 'Mostrar detalles';
+                    });
+
+                    const details = document.createElement('div');
+                    details.className = 'details';
+                    details.innerHTML = `
+                        <p>Fecha de vencimiento: ${dueDate.textContent}</p>
+                        <p>Asignado a: ${task.assignee}</p>
+                    `;
+
                     card.appendChild(code);
                     card.appendChild(name);
                     card.appendChild(status);
-                    card.appendChild(dueDate);
-                    card.appendChild(assignee);
+                    card.appendChild(detailsButton);
+                    card.appendChild(details);
                     taskContainer.appendChild(card);
+
+                    // Set text color to contrast with background color
+                    card.style.color = getContrastYIQ(bgColor);
                 }
             });
         }
+
+        function getContrastYIQ(hexcolor) {
+            hexcolor = hexcolor.replace('#', '');
+            let r = parseInt(hexcolor.substr(0, 2), 16);
+            let g = parseInt(hexcolor.substr(2, 2), 16);
+            let b = parseInt(hexcolor.substr(4, 2), 16);
+            let yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            return (yiq >= 128) ? 'black' : 'white';
+        }
+
+        toggleMenuButton.addEventListener('click', () => {
+            menu.classList.toggle('collapsed');
+        });
 
         projectSelector.addEventListener('change', async (e) => {
             currentProject = e.target.value;
