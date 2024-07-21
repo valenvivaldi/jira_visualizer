@@ -11,38 +11,46 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+            overflow-x: hidden;
         }
 
         #menu {
             position: fixed;
-            top: 0;
+            top: 40px;
             left: 0;
-            right: 0;
+            width: 15%;
+            height: 100%;
             background-color: #f8f8f8;
             padding: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease;
+            transform: translateX(-100%);
+            z-index: 1000;
         }
 
         #menu.collapsed {
-            transform: translateY(-100%);
+            transform: translateX(0);
         }
 
         #toggleMenuButton {
             position: fixed;
-            top: 0;
-            right: 0;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px;
-            cursor: pointer;
+            top: 10px;
+            left: 10px;
             z-index: 1001;
+            background-color: #f8f8f8;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+        }
+
+        #epicSelector {
+            width: 100%;
+            max-width: 100%;
         }
 
         #taskContainer {
-            margin-top: 60px;
+            margin-left: 15%;
+            padding: 10px;
             display: flex;
             flex-wrap: wrap;
             justify-content: space-around;
@@ -100,6 +108,16 @@
             color: black;
             text-decoration: none;
             cursor: pointer;
+        }
+
+        #colorPreset {
+            margin-right: 10px;
+        }
+
+        #colorPicker {
+            width: 40px;
+            height: 40px;
+            border: none;
         }
     </style>
 </head>
@@ -294,7 +312,7 @@
         }
 
         function renderEpicSelector(epics) {
-            epicSelector.innerHTML = '<option value="">Todos los Epics</option>';
+            epicSelector.innerHTML = '';
             epics.forEach(epic => {
                 const option = document.createElement('option');
                 option.value = epic;
@@ -321,16 +339,44 @@
                 const label = document.createElement('label');
                 label.htmlFor = `status-${status}`;
                 label.textContent = status;
-                const colorPicker = document.createElement('input');
-                colorPicker.type = 'color';
-                colorPicker.value = statusFilters[status]?.color || '#f8f8f8';
-                colorPicker.addEventListener('change', (e) => {
+
+                const colorPreset = document.createElement('select');
+                colorPreset.id = 'colorPreset';
+                color_names = ['Blanco', 'Gris', 'Rojo', 'Verde', 'Azul'];
+                const colors = ['#ffffff', '#f8f8f8', '#ffdddd', '#ddffdd', '#ddddff'];
+                
+                createOption = (color, name) => {
+                    const option = document.createElement('option');
+                    option.value = color;
+                    option.style.backgroundColor = color;
+                    option.textContent = name;
+                    return option;
+                }
+                
+                colors.forEach((color, index) => {
+                    colorPreset.appendChild(createOption(color, color_names[index]));
+                });
+                colorPreset.value = statusFilters[status]?.color || '#ffffff';
+                colorPreset.addEventListener('change', (e) => {
                     statusFilters[status] = { ...statusFilters[status], color: e.target.value };
                     saveFilters();
                     renderTasks(tasks);
                 });
+
+                const colorPicker = document.createElement('input');
+                colorPicker.type = 'color';
+                colorPicker.id = 'colorPicker';
+                colorPicker.value = statusFilters[status]?.color || '#ffffff';
+                colorPicker.addEventListener('change', (e) => {
+                    statusFilters[status] = { ...statusFilters[status], color: e.target.value };
+                    colorPreset.value = e.target.value;
+                    saveFilters();
+                    renderTasks(tasks);
+                });
+
                 div.appendChild(checkbox);
                 div.appendChild(label);
+                div.appendChild(colorPreset);
                 div.appendChild(colorPicker);
                 statusFiltersContainer.appendChild(div);
             });
@@ -360,7 +406,7 @@
                         const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
                         dueDate.textContent = `Fecha de vencimiento: ${formattedDate}`;
                         if (date < new Date()) {
-                            dueDate.textContent += ' ⚠️';
+                            dueDate.textContent += ' ❌';
                         }
                     } else {
                         dueDate.textContent = 'Fecha de vencimiento: ❌';
@@ -379,9 +425,9 @@
                     const details = document.createElement('div');
                     details.className = 'details';
                     details.innerHTML = `
-                        <p>Fecha de vencimiento: ${dueDate.textContent}</p>
-                        <p>Asignado a: ${task.assignee}</p>
-                    `;
+                <p>Fecha de vencimiento: ${dueDate.textContent}</p>
+                <p>Asignado a: ${task.assignee}</p>
+            `;
 
                     card.appendChild(code);
                     card.appendChild(name);
@@ -424,13 +470,18 @@
             currentEpic = e.target.value;
             saveFilters();
             const tasks = await getJiraTasks(currentProject, currentEpic);
+            renderStatusFilters(tasks);
             renderTasks(tasks);
         });
 
         reloadButton.addEventListener('click', async () => {
-            const tasks = await getJiraTasks(currentProject, currentEpic);
-            renderStatusFilters(tasks);
-            renderTasks(tasks);
+            if (currentProject) {
+                const epics = await getJiraEpics(currentProject);
+                renderEpicSelector(epics);
+                const tasks = await getJiraTasks(currentProject, currentEpic);
+                renderStatusFilters(tasks);
+                renderTasks(tasks);
+            }
         });
 
         configButton.addEventListener('click', () => {
@@ -444,30 +495,30 @@
         saveConfigButton.addEventListener('click', () => {
             saveConfig();
             configModal.style.display = 'none';
-            location.reload();
         });
 
-        window.addEventListener('click', (e) => {
-            if (e.target === configModal) {
-                configModal.style.display = 'none';
-            }
-        });
-
-        async function init() {
+        function initialize() {
             loadConfig();
             loadFilters();
-            const projects = await getJiraProjects();
-            renderProjectSelector(projects);
-            if (currentProject) {
-                const epics = await getJiraEpics(currentProject);
-                renderEpicSelector(epics);
-                const tasks = await getJiraTasks(currentProject, currentEpic);
-                renderStatusFilters(tasks);
-                renderTasks(tasks);
-            }
+            getJiraProjects().then(projects => {
+                renderProjectSelector(projects);
+                if (currentProject) {
+                    projectSelector.value = currentProject;
+                    getJiraEpics(currentProject).then(epics => {
+                        renderEpicSelector(epics);
+                        if (currentEpic) {
+                            epicSelector.value = currentEpic;
+                        }
+                        getJiraTasks(currentProject, currentEpic).then(tasks => {
+                            renderStatusFilters(tasks);
+                            renderTasks(tasks);
+                        });
+                    });
+                }
+            });
         }
 
-        init();
+        initialize();
     </script>
 </body>
 
