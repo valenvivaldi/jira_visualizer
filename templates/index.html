@@ -130,6 +130,8 @@
         <div id="statusFilters"></div>
         <button id="reloadButton">🔄</button>
         <button id="configButton">⚙️</button>
+        <button id="showAllDetailsButton">Mostrar todos los detalles</button>
+        <button id="hideAllDetailsButton">Ocultar todos los detalles</button>
     </div>
     <div id="taskContainer"></div>
     <div id="configModal" class="modal">
@@ -209,6 +211,22 @@
         const saveConfigButton = document.getElementById('saveConfig');
         const toggleMenuButton = document.getElementById('toggleMenuButton');
         const menu = document.getElementById('menu');
+        const showAllDetailsButton = document.getElementById('showAllDetailsButton');
+        const hideAllDetailsButton = document.getElementById('hideAllDetailsButton');
+
+        showAllDetailsButton.addEventListener('click', () => {
+            document.querySelectorAll('.task-card').forEach(card => {
+                card.classList.add('show-details');
+                card.querySelector('button').textContent = 'Ocultar detalles';
+            });
+        });
+
+        hideAllDetailsButton.addEventListener('click', () => {
+            document.querySelectorAll('.task-card').forEach(card => {
+                card.classList.remove('show-details');
+                card.querySelector('button').textContent = 'Mostrar detalles';
+            });
+        });
 
         function loadConfig() {
             const savedConfig = localStorage.getItem('jiraVisualizerConfig');
@@ -344,7 +362,7 @@
                 colorPreset.id = 'colorPreset';
                 color_names = ['Blanco', 'Gris', 'Rojo', 'Verde', 'Azul'];
                 const colors = ['#ffffff', '#f8f8f8', '#ffdddd', '#ddffdd', '#ddddff'];
-                
+
                 createOption = (color, name) => {
                     const option = document.createElement('option');
                     option.value = color;
@@ -352,7 +370,7 @@
                     option.textContent = name;
                     return option;
                 }
-                
+
                 colors.forEach((color, index) => {
                     colorPreset.appendChild(createOption(color, color_names[index]));
                 });
@@ -399,6 +417,9 @@
 
                     const status = document.createElement('p');
                     status.textContent = `Estado: ${task.status}`;
+                    
+                    const assignee = document.createElement('p');
+                    assignee.textContent = `Asignado a: ${task.assignee}`;
 
                     const dueDate = document.createElement('p');
                     if (task.dueDate) {
@@ -412,8 +433,6 @@
                         dueDate.textContent = 'Fecha de vencimiento: ❌';
                     }
 
-                    const assignee = document.createElement('p');
-                    assignee.textContent = `Asignado a: ${task.assignee}`;
 
                     const detailsButton = document.createElement('button');
                     detailsButton.textContent = 'Mostrar detalles';
@@ -426,12 +445,12 @@
                     details.className = 'details';
                     details.innerHTML = `
                 <p>Fecha de vencimiento: ${dueDate.textContent}</p>
-                <p>Asignado a: ${task.assignee}</p>
             `;
 
                     card.appendChild(code);
                     card.appendChild(name);
                     card.appendChild(status);
+                    card.appendChild(assignee);
                     card.appendChild(detailsButton);
                     card.appendChild(details);
                     taskContainer.appendChild(card);
