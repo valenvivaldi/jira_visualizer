@@ -410,7 +410,12 @@
                     card.style.backgroundColor = bgColor;
 
                     const code = document.createElement('h3');
-                    code.textContent = task.code;
+                    code.style.color = 'blue';
+                    const link = document.createElement('a');
+                    link.href = task.link;
+                    link.textContent = task.code;
+                    link.target = '_blank'; // Open link in a new tab
+                    code.appendChild(link);
 
                     const name = document.createElement('p');
                     name.textContent = task.name;

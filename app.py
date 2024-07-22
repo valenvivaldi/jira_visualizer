@@ -104,12 +104,12 @@ def get_tasks_jira():
             'name': issue['fields']['summary'],
             'status': issue['fields']['status']['name'],
             'dueDate': issue['fields'].get('duedate'),
-            'assignee': get_assignee(issue)
+            'assignee': get_assignee(issue),
+            'link': f'{JIRA_URL}/browse/{issue["key"]}'
         } for issue in issues]
         tasks.sort(key=lambda task: task['code'])  # Ordena las tareas por código
         return jsonify({'tasks': tasks})
     return jsonify({'error': 'Error fetching tasks'}), response.status_code
-
 
 def get_assignee(issue):
     assignee = issue['fields'].get('assignee')
