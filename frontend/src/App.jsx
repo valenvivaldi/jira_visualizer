@@ -1,35 +1,34 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState } from 'react';
+import { JiraProvider } from './context/JiraContext';
+import ConfigModal from './components/ConfigModal';
+import Menu from './components/Menu';
+import ProjectSelector from "./components/ProjectSelector"
+import EpicSelector from './components/EpicSelector';
+import StatusFilters from './components/StatusFilters';
+import TaskContainer from './components/TaskContainer';
+import ShowAllDetailsButton from './components/ShowAllDetailsButton';
+import HideAllDetailsButton from './components/HideAllDetailsButton';
 
-function App() {
-  const [count, setCount] = useState(0)
+const App = () => {
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
 
-  return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    const showConfig = () => setIsConfigOpen(true);
+    const hideConfig = () => setIsConfigOpen(false);
 
-export default App
+    return (
+        <JiraProvider>
+            <div className="app">
+                <Menu onShowConfig={showConfig} />
+                <ConfigModal isOpen={isConfigOpen} onClose={hideConfig} />
+                <ProjectSelector />
+                <EpicSelector />
+                <StatusFilters />
+                <TaskContainer />
+                <ShowAllDetailsButton />
+                <HideAllDetailsButton />
+            </div>
+        </JiraProvider>
+    );
+};
+
+export default App;
